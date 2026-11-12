@@ -2,7 +2,6 @@
 
 import { useAudioPlayer } from "@/lib/audio-player-context";
 import { Play, Pause, Square, Music, Volume2, Sparkles, Radio } from "lucide-react";
-import Image from "next/image";
 import { formatTime } from "@/lib/utils";
 
 export function AudioPlayerBar() {
@@ -26,12 +25,10 @@ export function AudioPlayerBar() {
         <div className="flex items-center gap-3 min-w-0">
           <div className="relative w-12 h-12 rounded-lg overflow-hidden bg-[#1a1d28] border border-[#262a3b] flex-shrink-0">
             {currentTrack.artwork ? (
-              <Image
+              <img
                 src={currentTrack.artwork}
                 alt={currentTrack.name}
-                fill
-                sizes="48px"
-                className="object-cover"
+                className="w-full h-full object-cover"
               />
             ) : (
               <div className="w-full h-full flex items-center justify-center text-[#949eb5]">
