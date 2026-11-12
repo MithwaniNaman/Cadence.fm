@@ -22,6 +22,8 @@ const track170: Track = {
   artwork: "",
   mood: "High Energy",
   energyLevel: 8,
+  audioUrl: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3",
+  license: "Creative Commons",
 };
 
 const result1 = calculateCadenceMatch(170, track170);
@@ -44,6 +46,8 @@ const track85: Track = {
   artwork: "",
   mood: "Steady State",
   energyLevel: 7,
+  audioUrl: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3",
+  license: "Creative Commons",
 };
 
 const result2 = calculateCadenceMatch(170, track85);

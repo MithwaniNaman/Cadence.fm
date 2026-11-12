@@ -12,7 +12,8 @@ import {
   Sparkles, 
   Menu, 
   X,
-  Target
+  Target,
+  Watch
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { loadUserProfile, UserProfile } from "@/lib/user-store";
@@ -35,6 +36,7 @@ export function Navbar() {
       icon: Play,
       isLive: true 
     },
+    { href: "/watch", label: "Apple Watch", icon: Watch },
     { href: "/insights", label: "Insights", icon: BarChart3 },
     { href: "/pm", label: "PM Strategy", icon: Sparkles },
     { href: "/profile", label: "Profile", icon: User },

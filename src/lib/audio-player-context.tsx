@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
 import { Track } from "./music-catalogue";
+import { realAudioPlayer } from "./open-source-player";
 import { audioSynth } from "./audio-synthesizer";
 
 interface AudioPlayerContextType {
@@ -11,6 +12,9 @@ interface AudioPlayerContextType {
   playTrack: (track: Track) => void;
   togglePlayPause: () => void;
   stopPlayback: () => void;
+  currentTime: number;
+  duration: number;
+  isUsingFallback: boolean;
 }
 
 const AudioPlayerContext = createContext<AudioPlayerContextType | undefined>(undefined);
@@ -19,39 +23,49 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
   const [currentTrack, setCurrentTrack] = useState<Track | null>(null);
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [currentBeat, setCurrentBeat] = useState<number>(0);
+  const [currentTime, setCurrentTime] = useState<number>(0);
+  const [duration, setDuration] = useState<number>(0);
+  const [isUsingFallback, setIsUsingFallback] = useState<boolean>(false);
 
   useEffect(() => {
+    // Listen to real audio player state changes
+    realAudioPlayer.setCallbacks(
+      () => {
+        setIsPlaying(realAudioPlayer.getIsPlaying());
+        setCurrentTrack(realAudioPlayer.getCurrentTrack());
+        setIsUsingFallback(realAudioPlayer.getIsUsingFallback());
+      },
+      (curr, dur) => {
+        setCurrentTime(curr);
+        setDuration(dur);
+      }
+    );
+
+    // Also connect beat callback for pulse animations
     audioSynth.setOnBeat((beat) => {
       setCurrentBeat(beat);
     });
 
     return () => {
+      realAudioPlayer.stop();
       audioSynth.setOnBeat(null);
-      audioSynth.stop();
     };
   }, []);
 
   const playTrack = useCallback((track: Track) => {
     setCurrentTrack(track);
-    audioSynth.start(track.bpm);
+    realAudioPlayer.playTrack(track);
     setIsPlaying(true);
   }, []);
 
   const togglePlayPause = useCallback(() => {
-    if (!currentTrack) return;
-    if (isPlaying) {
-      audioSynth.stop();
-      setIsPlaying(false);
-    } else {
-      audioSynth.start(currentTrack.bpm);
-      setIsPlaying(true);
-    }
-  }, [currentTrack, isPlaying]);
+    realAudioPlayer.togglePlayPause();
+  }, []);
 
   const stopPlayback = useCallback(() => {
-    audioSynth.stop();
-    setIsPlaying(false);
+    realAudioPlayer.stop();
     setCurrentTrack(null);
+    setIsPlaying(false);
   }, []);
 
   return (
@@ -63,6 +77,9 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
         playTrack,
         togglePlayPause,
         stopPlayback,
+        currentTime,
+        duration,
+        isUsingFallback,
       }}
     >
       {children}

@@ -1,11 +1,21 @@
 "use client";
 
 import { useAudioPlayer } from "@/lib/audio-player-context";
-import { Play, Pause, Square, Music, Volume2 } from "lucide-react";
+import { Play, Pause, Square, Music, Volume2, Sparkles, Radio } from "lucide-react";
 import Image from "next/image";
+import { formatTime } from "@/lib/utils";
 
 export function AudioPlayerBar() {
-  const { currentTrack, isPlaying, currentBeat, togglePlayPause, stopPlayback } = useAudioPlayer();
+  const { 
+    currentTrack, 
+    isPlaying, 
+    currentBeat, 
+    togglePlayPause, 
+    stopPlayback, 
+    currentTime, 
+    duration,
+    isUsingFallback 
+  } = useAudioPlayer();
 
   if (!currentTrack) return null;
 
@@ -40,41 +50,31 @@ export function AudioPlayerBar() {
           </div>
 
           <div className="min-w-0">
-            <h4 className="text-white font-semibold text-sm truncate">{currentTrack.name}</h4>
+            <div className="flex items-center gap-2">
+              <h4 className="text-white font-semibold text-sm truncate">{currentTrack.name}</h4>
+              <span className="px-1.5 py-0.5 rounded text-[9px] font-mono font-bold bg-[#10e57a]/20 text-[#10e57a] border border-[#10e57a]/30">
+                LIVE AUDIO
+              </span>
+            </div>
             <p className="text-xs text-[#949eb5] truncate">
-              {currentTrack.artist} · <span className="text-[#10e57a] font-mono font-medium">{currentTrack.bpm} BPM</span>
+              {currentTrack.artist} · <span className="text-[#10e57a] font-mono font-medium">{currentTrack.bpm} BPM</span> · <span className="text-white/60 font-mono text-[10px]">{formatTime(currentTime)} / {formatTime(duration || currentTrack.durationSec)}</span>
             </p>
           </div>
         </div>
 
-        {/* Metronome Beat Indicator & Synth Notice */}
-        <div className="hidden md:flex items-center gap-3">
-          <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#1a1d28] border border-[#262a3b] text-xs font-mono">
-            <span className="text-[#949eb5]">Metronome Beat:</span>
-            <div className="flex items-center gap-1">
-              {[0, 1, 2, 3].map((b) => (
-                <span
-                  key={b}
-                  className={`w-2.5 h-2.5 rounded-full transition-all duration-75 ${
-                    isPlaying && currentBeat === b
-                      ? "bg-[#10e57a] scale-125 shadow-[0_0_8px_#10e57a]"
-                      : "bg-[#262a3b]"
-                  }`}
-                />
-              ))}
-            </div>
-          </div>
-          <span className="text-[11px] text-[#6b7794] hidden lg:inline">
-            Web Audio Synthesizer @ {currentTrack.bpm} BPM
-          </span>
+        {/* AI Cue & Open Source Library Indicator */}
+        <div className="hidden lg:flex items-center gap-2.5 px-3 py-1.5 rounded-full bg-[#1a1d28] border border-[#262a3b] text-xs">
+          <Sparkles className="w-3.5 h-3.5 text-[#10e57a]" />
+          <span className="text-[#949eb5]">AI Rhythm Match:</span>
+          <span className="text-white font-medium truncate max-w-xs">{currentTrack.aiCue || "Harmonic tempo lock"}</span>
         </div>
 
         {/* Controls */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-shrink-0">
           <button
             onClick={togglePlayPause}
             className="w-10 h-10 rounded-full bg-[#10e57a] hover:bg-[#0cd06d] text-black flex items-center justify-center transition-all shadow-[0_0_15px_rgba(16,229,122,0.3)]"
-            title={isPlaying ? "Pause Beat Preview" : "Play Beat Preview"}
+            title={isPlaying ? "Pause Stream" : "Play Real Audio"}
           >
             {isPlaying ? (
               <Pause className="w-4 h-4 fill-black" />
@@ -85,13 +85,10 @@ export function AudioPlayerBar() {
           <button
             onClick={stopPlayback}
             className="p-2 rounded-lg text-[#949eb5] hover:text-white hover:bg-[#1a1d28] transition-colors"
-            title="Stop & Close Preview"
+            title="Stop Playback"
           >
             <Square className="w-4 h-4" />
           </button>
-          <div className="hidden sm:flex items-center gap-1 text-[#6b7794] text-xs pl-2 border-l border-[#262a3b]">
-            <Volume2 className="w-4 h-4 text-[#949eb5]" />
-          </div>
         </div>
       </div>
     </div>
