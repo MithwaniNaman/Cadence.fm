@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { 
   Activity, 
@@ -8,13 +8,9 @@ import {
   Disc3, 
   Flame, 
   TrendingUp, 
-  Clock, 
-  ArrowRight, 
   Target, 
   Sliders, 
-  CheckCircle2, 
   Sparkles,
-  Zap,
   ChevronRight
 } from "lucide-react";
 import { loadUserProfile, loadRunSessions, loadActivePlaylist, saveActivePlaylist, UserProfile, RunSessionRecord } from "@/lib/user-store";
@@ -23,17 +19,17 @@ import { useAudioPlayer } from "@/lib/audio-player-context";
 import { OnboardingModal } from "@/components/OnboardingModal";
 
 export default function DashboardPage() {
-  const [profile, setProfile] = useState<UserProfile | null>(null);
-  const [sessions, setSessions] = useState<RunSessionRecord[]>([]);
-  const [activePlaylist, setActivePlaylist] = useState<GeneratedPlaylist | null>(null);
+  const [profile, setProfile] = useState<UserProfile | null>(() =>
+    typeof window !== "undefined" ? loadUserProfile() : null
+  );
+  const [sessions] = useState<RunSessionRecord[]>(() =>
+    typeof window !== "undefined" ? loadRunSessions() : []
+  );
+  const [activePlaylist, setActivePlaylist] = useState<GeneratedPlaylist | null>(() =>
+    typeof window !== "undefined" ? loadActivePlaylist() : null
+  );
   const [isOnboardingOpen, setIsOnboardingOpen] = useState(false);
   const { playTrack } = useAudioPlayer();
-
-  useEffect(() => {
-    setProfile(loadUserProfile());
-    setSessions(loadRunSessions());
-    setActivePlaylist(loadActivePlaylist());
-  }, []);
 
   const handleQuickWorkoutSelect = (type: WorkoutType) => {
     if (!profile) return;

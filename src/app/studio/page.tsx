@@ -1,32 +1,25 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { 
   Disc3, 
   Play, 
   RotateCcw, 
-  Sliders, 
   SlidersHorizontal, 
-  Clock, 
   Sparkles, 
   Check, 
   Volume2, 
-  Zap, 
-  ArrowRight,
-  Info,
-  Layers,
-  ChevronDown,
-  ChevronUp
+  ChevronDown, 
+  ChevronUp 
 } from "lucide-react";
 import { 
   WORKOUT_PRESETS, 
   WorkoutType, 
   generateSmartPlaylist, 
-  GeneratedPlaylist, 
-  PlaylistTrackItem 
+  GeneratedPlaylist 
 } from "@/lib/playlist-generator";
-import { loadUserProfile, saveActivePlaylist, UserProfile } from "@/lib/user-store";
+import { loadUserProfile, saveActivePlaylist } from "@/lib/user-store";
 import { useAudioPlayer } from "@/lib/audio-player-context";
 import { estimatePaceFromCadence } from "@/lib/cadence-engine";
 
@@ -44,31 +37,32 @@ export default function PlaylistStudioPage() {
   const { playTrack } = useAudioPlayer();
 
   const [workoutType, setWorkoutType] = useState<WorkoutType>("long-run");
-  const [targetCadence, setTargetCadence] = useState<number>(168);
-  const [selectedGenres, setSelectedGenres] = useState<string[]>([
-    "Electronic",
-    "Alternative Rock",
-    "Hip-Hop",
-  ]);
-  const [playlist, setPlaylist] = useState<GeneratedPlaylist | null>(null);
+  const [targetCadence, setTargetCadence] = useState<number>(() => {
+    if (typeof window !== "undefined") {
+      return loadUserProfile().typicalCadence || 136;
+    }
+    return 136;
+  });
+  const [selectedGenres, setSelectedGenres] = useState<string[]>(() => {
+    if (typeof window !== "undefined") {
+      return loadUserProfile().preferredGenres || ["Electronic", "Alternative Rock"];
+    }
+    return ["Electronic", "Alternative Rock"];
+  });
+  const [playlist, setPlaylist] = useState<GeneratedPlaylist | null>(() => {
+    if (typeof window !== "undefined") {
+      const prof = loadUserProfile();
+      return generateSmartPlaylist({
+        workoutType: "long-run",
+        targetCadence: prof.typicalCadence || 136,
+        selectedGenres: prof.preferredGenres,
+      });
+    }
+    return null;
+  });
   const [showConfigBands, setShowConfigBands] = useState<boolean>(false);
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
   const [activeStageFilter, setActiveStageFilter] = useState<string | null>(null);
-
-  // Load initial settings
-  useEffect(() => {
-    const prof = loadUserProfile();
-    setTargetCadence(prof.typicalCadence || 168);
-    setSelectedGenres(prof.preferredGenres || ["Electronic", "Alternative Rock"]);
-
-    // Generate initial playlist
-    const initial = generateSmartPlaylist({
-      workoutType: "long-run",
-      targetCadence: prof.typicalCadence || 168,
-      selectedGenres: prof.preferredGenres,
-    });
-    setPlaylist(initial);
-  }, []);
 
   const handleGenerate = (newType = workoutType, newCadence = targetCadence, newGenres = selectedGenres) => {
     setIsGenerating(true);

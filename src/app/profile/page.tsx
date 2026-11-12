@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { 
   User, 
   Target, 
@@ -8,9 +8,7 @@ import {
   Flame, 
   Save, 
   RotateCcw, 
-  CheckCircle2, 
-  Sparkles,
-  Sliders
+  CheckCircle2 
 } from "lucide-react";
 import { 
   loadUserProfile, 
@@ -49,12 +47,10 @@ const INTENSITY_OPTIONS: ("Moderate" | "Challenging" | "High Performance")[] = [
 ];
 
 export default function ProfilePage() {
-  const [profile, setProfile] = useState<UserProfile>(DEFAULT_USER_PROFILE);
+  const [profile, setProfile] = useState<UserProfile>(() =>
+    typeof window !== "undefined" ? loadUserProfile() : DEFAULT_USER_PROFILE
+  );
   const [savedSuccess, setSavedSuccess] = useState<boolean>(false);
-
-  useEffect(() => {
-    setProfile(loadUserProfile());
-  }, []);
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();

@@ -2,17 +2,11 @@ import Link from "next/link";
 import { 
   Sparkles, 
   Target, 
-  TrendingUp, 
   Compass, 
   Users, 
   CheckCircle2, 
-  ArrowRight, 
   Play, 
-  Disc3, 
-  Radio, 
-  Layers, 
-  Cpu, 
-  ShieldCheck 
+  Disc3 
 } from "lucide-react";
 
 export default function PMStrategyPage() {

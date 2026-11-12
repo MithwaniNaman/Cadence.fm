@@ -56,7 +56,6 @@ export function calculateCadenceMatch(
   }
 
   // Calculate base mathematical score based on percentage deviation from harmonic target
-  const targetHarmonicBpm = relationship === "direct" ? bpm : (relationship === "half-time" ? bpm * 2 : bpm / 2);
   const percentDeviation = (minDiff / cadenceSpm) * 100;
 
   // Non-linear decay curve:
@@ -65,7 +64,7 @@ export function calculateCadenceMatch(
   // - 3% deviation (e.g. 5 BPM): ~88 score
   // - 6% deviation (e.g. 10 BPM): ~72 score
   // - >15% deviation: falls below 45
-  let baseScore = Math.max(10, Math.round(100 - (percentDeviation * 4.2)));
+  const baseScore = Math.max(10, Math.round(100 - (percentDeviation * 4.2)));
 
   // Bonus/penalty for genre and mood alignment if specified
   let genreBonus = 0;

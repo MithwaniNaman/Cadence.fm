@@ -1,4 +1,4 @@
-import { SEEDED_TRACKS, Track } from "./music-catalogue";
+import { SEEDED_TRACKS } from "./music-catalogue";
 import { calculateCadenceMatch, CadenceMatchResult } from "./cadence-engine";
 
 export type WorkoutType = "easy" | "tempo" | "intervals" | "long-run" | "race-day";

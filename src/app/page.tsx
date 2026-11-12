@@ -7,25 +7,22 @@ import {
   Disc3, 
   ArrowRight, 
   Activity, 
-  Sparkles, 
   Flame, 
   Layers, 
   CheckCircle2, 
   Volume2,
   ChevronRight,
-  TrendingUp,
   Cpu
 } from "lucide-react";
 import { SEEDED_TRACKS } from "@/lib/music-catalogue";
 import { calculateCadenceMatch, estimatePaceFromCadence } from "@/lib/cadence-engine";
 import { useAudioPlayer } from "@/lib/audio-player-context";
 import { OnboardingModal } from "@/components/OnboardingModal";
-import { loadUserProfile, UserProfile } from "@/lib/user-store";
 
 export default function LandingPage() {
-  const [demoCadence, setDemoCadence] = useState<number>(170);
+  const [demoCadence, setDemoCadence] = useState<number>(135);
   const [isOnboardingOpen, setIsOnboardingOpen] = useState(false);
-  const { playTrack, currentTrack, isPlaying } = useAudioPlayer();
+  const { playTrack } = useAudioPlayer();
 
   // Pick top matching track for interactive demo knob
   const scoredTracks = SEEDED_TRACKS.map((t) => calculateCadenceMatch(demoCadence, t))
@@ -128,8 +125,8 @@ export default function LandingPage() {
 
             <input
               type="range"
-              min={145}
-              max={188}
+              min={110}
+              max={180}
               step={1}
               value={demoCadence}
               onChange={(e) => setDemoCadence(parseInt(e.target.value))}
@@ -137,10 +134,10 @@ export default function LandingPage() {
             />
 
             <div className="flex justify-between text-[11px] font-mono text-[#6b7794]">
-              <span>145 SPM (Recovery)</span>
-              <span>165 SPM (Aerobic Base)</span>
-              <span>172 SPM (Threshold)</span>
-              <span>185+ SPM (Sprint)</span>
+              <span>110 SPM (Walk)</span>
+              <span>125 SPM (Jog)</span>
+              <span>135 SPM (Cruise)</span>
+              <span>150+ SPM (Tempo)</span>
             </div>
           </div>
 

@@ -4,20 +4,9 @@ import { useState, useEffect } from "react";
 import { 
   Play, 
   Pause, 
-  RotateCcw, 
-  Activity, 
-  Heart, 
-  Compass, 
-  Disc3, 
   Sparkles, 
-  Volume2, 
-  Flame, 
-  CheckCircle2, 
-  ArrowRight,
-  Radio,
-  Zap,
-  ChevronRight,
-  ChevronLeft
+  ChevronRight, 
+  ChevronLeft 
 } from "lucide-react";
 import { Track } from "@/lib/music-catalogue";
 import { CadenceMatchResult } from "@/lib/cadence-engine";
@@ -55,9 +44,12 @@ export function AppleWatchSimulator({
 
   // Trigger simulated haptic pulse on cadence lock change
   useEffect(() => {
-    setHapticTriggered(true);
-    const t = setTimeout(() => setHapticTriggered(false), 300);
-    return () => clearTimeout(t);
+    const triggerTimeout = setTimeout(() => {
+      setHapticTriggered(true);
+      const resetTimeout = setTimeout(() => setHapticTriggered(false), 250);
+      return () => clearTimeout(resetTimeout);
+    }, 10);
+    return () => clearTimeout(triggerTimeout);
   }, [matchResult.isPhaseLocked, cadence]);
 
   const rotateCrown = (delta: number) => {
@@ -106,7 +98,7 @@ export function AppleWatchSimulator({
           <div className="w-full h-full bg-black rounded-[42px] overflow-hidden relative flex flex-col p-4 border border-[#222533]">
             {/* Top WatchOS Status Bar */}
             <div className="flex items-center justify-between text-[11px] text-[#949eb5] font-semibold pb-1 border-b border-white/5">
-              <span className="font-mono text-white">10:09</span>
+              <span className="font-mono text-white">{formatTime(elapsedSeconds)}</span>
               <div className="flex items-center gap-1.5">
                 <span className="w-1.5 h-1.5 rounded-full bg-[#10e57a] animate-ping" />
                 <span className="text-[10px] text-[#10e57a] font-mono">CADENCE</span>

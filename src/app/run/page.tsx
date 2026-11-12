@@ -10,10 +10,8 @@ import {
   Watch, 
   Monitor, 
   Split, 
-  RefreshCw,
-  Footprints,
-  Activity,
-  Zap
+  RefreshCw, 
+  Footprints 
 } from "lucide-react";
 import { 
   loadActivePlaylist, 
@@ -24,7 +22,6 @@ import { GeneratedPlaylist, PlaylistTrackItem } from "@/lib/playlist-generator";
 import { SEEDED_TRACKS, Track } from "@/lib/music-catalogue";
 import { calculateCadenceMatch, estimatePaceFromCadence, CadenceMatchResult } from "@/lib/cadence-engine";
 import { realAudioPlayer } from "@/lib/open-source-player";
-import { audioSynth } from "@/lib/audio-synthesizer";
 import { formatTime } from "@/lib/utils";
 import { AppleWatchSimulator } from "@/components/AppleWatchSimulator";
 
@@ -36,17 +33,19 @@ export default function LiveRunSimulatorPage() {
   const [elapsedSeconds, setElapsedSeconds] = useState<number>(0);
   const [distanceKm, setDistanceKm] = useState<number>(0);
   const [cadence, setCadence] = useState<number>(135);
-  const [simulationSpeed, setSimulationSpeed] = useState<number>(1);
+  const [simulationSpeed] = useState<number>(1);
   const [displayMode, setDisplayMode] = useState<"cockpit" | "watch" | "split">("cockpit");
 
   // Tap-tempo stride detector state (Calibrated from first 4 clicks)
-  const [stepTaps, setStepTaps] = useState<number[]>([]);
+  const [, setStepTaps] = useState<number[]>([]);
   const [clickCount, setClickCount] = useState<number>(0);
   const [isSteppingVisual, setIsSteppingVisual] = useState<boolean>(false);
   const [lastTapFeedback, setLastTapFeedback] = useState<string | null>(null);
 
   // Music & Real Audio Stream
-  const [playlist, setPlaylist] = useState<GeneratedPlaylist | null>(null);
+  const [playlist] = useState<GeneratedPlaylist | null>(() => 
+    typeof window !== "undefined" ? loadActivePlaylist() : null
+  );
   const [currentTrackIndex, setCurrentTrackIndex] = useState<number>(0);
   const [aiAutoAdaptEnabled, setAiAutoAdaptEnabled] = useState<boolean>(true);
   const [aiCoachCue, setAiCoachCue] = useState<string>("Cadence calibrated at 135 SPM. Spacebar or Step button active.");
@@ -67,12 +66,6 @@ export default function LiveRunSimulatorPage() {
     sprint: 0,
   });
 
-  // Load active playlist on mount
-  useEffect(() => {
-    const active = loadActivePlaylist();
-    setPlaylist(active);
-  }, []);
-
   const currentTrack: Track = playlist?.tracks[currentTrackIndex]?.track || SEEDED_TRACKS[0];
   const matchResult: CadenceMatchResult = calculateCadenceMatch(cadence, currentTrack);
   const pace = estimatePaceFromCadence(cadence);
@@ -82,6 +75,20 @@ export default function LiveRunSimulatorPage() {
     .map((t) => calculateCadenceMatch(cadence, t))
     .filter((res) => res.track.id !== currentTrack.id)
     .sort((a, b) => b.score - a.score)[0];
+
+  // Switch to specific track (with real open source audio stream)
+  const handleSwitchTrack = useCallback((newTrack: Track) => {
+    if (playlist) {
+      const idx = playlist.tracks.findIndex((item: PlaylistTrackItem) => item.track.id === newTrack.id);
+      if (idx >= 0) {
+        setCurrentTrackIndex(idx);
+      }
+    }
+    if (isRunning) {
+      realAudioPlayer.playTrack(newTrack);
+    }
+    setAiCoachCue(`AI DJ crossfaded to "${newTrack.name}" (${newTrack.bpm} BPM) for 1:1 cadence harmony!`);
+  }, [playlist, isRunning]);
 
   // Real Audio Streaming Trigger
   const handleTogglePlay = useCallback(() => {
@@ -110,21 +117,7 @@ export default function LiveRunSimulatorPage() {
     } else {
       setAiCoachCue(`Cadence locked at ${newSpm} SPM (${newMatch.rhythmDetail}, ${newMatch.score}% sync).`);
     }
-  }, [currentTrack, aiAutoAdaptEnabled, bestAlternative]);
-
-  // Switch to specific track (with real open source audio stream)
-  const handleSwitchTrack = (newTrack: Track) => {
-    if (playlist) {
-      const idx = playlist.tracks.findIndex((item: PlaylistTrackItem) => item.track.id === newTrack.id);
-      if (idx >= 0) {
-        setCurrentTrackIndex(idx);
-      }
-    }
-    if (isRunning) {
-      realAudioPlayer.playTrack(newTrack);
-    }
-    setAiCoachCue(`AI DJ crossfaded to "${newTrack.name}" (${newTrack.bpm} BPM) for 1:1 cadence harmony!`);
-  };
+  }, [currentTrack, aiAutoAdaptEnabled, bestAlternative, handleSwitchTrack]);
 
   // STEP BUTTON / SPACEBAR TAP-TEMPO DETECTOR (Calibrated from first 4 clicks)
   const handleStepTap = useCallback(() => {

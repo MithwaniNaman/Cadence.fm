@@ -92,14 +92,14 @@ class OpenSourceAudioPlayer {
               this.isStreamingActive = true;
               this.notifyState();
             })
-            .catch((err) => {
+            .catch(() => {
               // Browser autoplay policy or remote load abort
               this.isStreamingActive = false;
               // Synth is already running smoothly!
               this.notifyState();
             });
         }
-      } catch (err) {
+      } catch {
         this.isStreamingActive = false;
       }
     }

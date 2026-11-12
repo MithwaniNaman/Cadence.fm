@@ -1,19 +1,17 @@
 "use client";
 
 import { useAudioPlayer } from "@/lib/audio-player-context";
-import { Play, Pause, Square, Music, Volume2, Sparkles, Radio } from "lucide-react";
+import { Play, Pause, Square, Music, Sparkles } from "lucide-react";
 import { formatTime } from "@/lib/utils";
 
 export function AudioPlayerBar() {
   const { 
     currentTrack, 
     isPlaying, 
-    currentBeat, 
     togglePlayPause, 
     stopPlayback, 
     currentTime, 
-    duration,
-    isUsingFallback 
+    duration 
   } = useAudioPlayer();
 
   if (!currentTrack) return null;

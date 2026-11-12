@@ -1,21 +1,18 @@
 "use client";
 
-import { useState, useEffect, Suspense } from "react";
+import { useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { 
   BarChart3, 
   Activity, 
   Sparkles, 
-  TrendingUp, 
   Flag, 
   Clock, 
-  Disc3, 
   Play, 
-  ArrowRight, 
   ShieldCheck, 
-  Award,
-  ChevronDown
+  Award, 
+  ChevronDown 
 } from "lucide-react";
 import { 
   ResponsiveContainer, 
@@ -26,10 +23,7 @@ import {
   Tooltip, 
   CartesianGrid, 
   AreaChart, 
-  Area,
-  BarChart,
-  Bar,
-  Cell
+  Area 
 } from "recharts";
 import { loadRunSessions, RunSessionRecord } from "@/lib/user-store";
 import { formatTime } from "@/lib/utils";
@@ -38,18 +32,17 @@ function InsightsContent() {
   const searchParams = useSearchParams();
   const runId = searchParams.get("session");
 
-  const [sessions, setSessions] = useState<RunSessionRecord[]>([]);
-  const [selectedSessionId, setSelectedSessionId] = useState<string>("");
-
-  useEffect(() => {
-    const list = loadRunSessions();
-    setSessions(list);
-    if (runId && list.some((s) => s.id === runId)) {
-      setSelectedSessionId(runId);
-    } else if (list.length > 0) {
-      setSelectedSessionId(list[0].id);
+  const [sessions] = useState<RunSessionRecord[]>(() =>
+    typeof window !== "undefined" ? loadRunSessions() : []
+  );
+  const [selectedSessionId, setSelectedSessionId] = useState<string>(() => {
+    if (typeof window !== "undefined") {
+      const list = loadRunSessions();
+      if (runId && list.some((s) => s.id === runId)) return runId;
+      if (list.length > 0) return list[0].id;
     }
-  }, [runId]);
+    return "";
+  });
 
   const activeSession: RunSessionRecord | undefined =
     sessions.find((s) => s.id === selectedSessionId) || sessions[0];
@@ -73,13 +66,6 @@ function InsightsContent() {
     compatibility: pt.compatibility,
     pace: Math.round(pt.pace),
     trackName: pt.trackName,
-  }));
-
-  const zoneData = activeSession.cadenceZones.map((z) => ({
-    name: z.zoneName,
-    percentage: z.percentage,
-    seconds: z.seconds,
-    color: z.color,
   }));
 
   return (
@@ -280,7 +266,7 @@ function InsightsContent() {
                 <Tooltip
                   contentStyle={{ backgroundColor: "#12141c", borderColor: "#262a3b", borderRadius: "12px", fontSize: "12px" }}
                   labelStyle={{ color: "#949eb5" }}
-                  formatter={(val: any) => [`${val ?? 0} SPM`, "Cadence"]}
+                  formatter={(val: unknown) => [`${val ?? 0} SPM`, "Cadence"]}
                 />
                 <Line
                   type="monotone"
@@ -334,7 +320,7 @@ function InsightsContent() {
                 <Tooltip
                   contentStyle={{ backgroundColor: "#12141c", borderColor: "#262a3b", borderRadius: "12px", fontSize: "12px" }}
                   labelStyle={{ color: "#949eb5" }}
-                  formatter={(val: any) => [`${val ?? 0}% Sync`, "Compatibility"]}
+                  formatter={(val: unknown) => [`${val ?? 0}% Sync`, "Compatibility"]}
                 />
                 <Area
                   type="monotone"

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Activity, ShieldCheck, HeartPulse, Zap } from "lucide-react";
+import { ShieldCheck, HeartPulse, Zap } from "lucide-react";
 
 export function Footer() {
   return (
@@ -43,6 +43,7 @@ export function Footer() {
               <li><Link href="/dashboard" className="hover:text-white transition-colors">Dashboard</Link></li>
               <li><Link href="/studio" className="hover:text-white transition-colors">Playlist Studio</Link></li>
               <li><Link href="/run" className="hover:text-[#10e57a] transition-colors">Live Run Simulator</Link></li>
+              <li><Link href="/watch" className="hover:text-white transition-colors">Apple Watch Ultra</Link></li>
               <li><Link href="/insights" className="hover:text-white transition-colors">Performance Insights</Link></li>
               <li><Link href="/profile" className="hover:text-white transition-colors">Athlete Profile</Link></li>
             </ul>

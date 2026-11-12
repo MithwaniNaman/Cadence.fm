@@ -11,11 +11,11 @@ import { realAudioPlayer } from "@/lib/open-source-player";
 export default function StandaloneWatchPage() {
   const [cadence, setCadence] = useState<number>(135);
   const [isRunning, setIsRunning] = useState<boolean>(false);
-  const [elapsedSeconds, setElapsedSeconds] = useState<number>(142);
-  const [distanceKm, setDistanceKm] = useState<number>(1.85);
+  const [elapsedSeconds] = useState<number>(142);
+  const [distanceKm] = useState<number>(1.85);
   const [currentTrackIndex, setCurrentTrackIndex] = useState<number>(0);
   const [aiCoachCue, setAiCoachCue] = useState<string>("watchOS Cadence companion active at 135 SPM. Spacebar or Crown controls active.");
-  const [stepTaps, setStepTaps] = useState<number[]>([]);
+  const [, setStepTaps] = useState<number[]>([]);
 
   const currentTrack: Track = SEEDED_TRACKS[currentTrackIndex] || SEEDED_TRACKS[0];
   const matchResult: CadenceMatchResult = calculateCadenceMatch(cadence, currentTrack);

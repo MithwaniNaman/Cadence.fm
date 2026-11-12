@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { 
   Activity, 
   Disc3, 
@@ -21,11 +21,9 @@ import { loadUserProfile, UserProfile } from "@/lib/user-store";
 export function Navbar() {
   const pathname = usePathname();
   const [isOpen, setIsOpen] = useState(false);
-  const [profile, setProfile] = useState<UserProfile | null>(null);
-
-  useEffect(() => {
-    setProfile(loadUserProfile());
-  }, []);
+  const [profile] = useState<UserProfile | null>(() => 
+    typeof window !== "undefined" ? loadUserProfile() : null
+  );
 
   const navLinks = [
     { href: "/dashboard", label: "Dashboard", icon: Activity },
