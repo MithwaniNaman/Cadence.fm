@@ -52,7 +52,9 @@ export default function StandaloneWatchPage() {
     }
   };
 
-  // Step tap via Spacebar on watch page
+  const [clickCount, setClickCount] = useState<number>(0);
+
+  // Step tap via Spacebar on watch page (Calibrated from first 4 clicks)
   const handleStepTap = useCallback(() => {
     const now = performance.now();
     if (!isRunning) {
@@ -61,23 +63,24 @@ export default function StandaloneWatchPage() {
     }
 
     setStepTaps((prev) => {
-      const recent = prev.filter((t) => now - t < 2800);
-      const updated = [...recent, now];
+      const isStale = prev.length > 0 && (now - prev[prev.length - 1] > 2500);
+      const startingFresh = isStale || prev.length >= 4;
+      const updated = startingFresh ? [now] : [...prev, now];
+      const count = updated.length;
+      setClickCount(count);
 
-      if (updated.length >= 2) {
-        const intervals: number[] = [];
-        for (let i = 1; i < updated.length; i++) {
-          const delta = updated[i] - updated[i - 1];
-          if (delta > 160) intervals.push(delta);
-        }
-        if (intervals.length > 0) {
-          const avgInterval = intervals.reduce((a, b) => a + b, 0) / intervals.length;
-          const calculatedSpm = Math.round(60000 / avgInterval);
-          const clampedSpm = Math.max(100, Math.min(185, calculatedSpm));
-          handleCadenceChange(clampedSpm);
-        }
+      if (count === 4) {
+        const totalDurationMs = updated[3] - updated[0];
+        const avgIntervalMs = totalDurationMs / 3;
+        const measuredSpm = Math.round(60000 / avgIntervalMs);
+        const clampedSpm = Math.max(100, Math.min(185, measuredSpm));
+        handleCadenceChange(clampedSpm);
+        setAiCoachCue(`Watch calibrated from 4 clicks: ${clampedSpm} SPM!`);
+        setTimeout(() => setClickCount(0), 2200);
+      } else {
+        setAiCoachCue(`Step ${count}/4 recorded — tap ${4 - count} more times...`);
       }
-      return updated.slice(-5);
+      return updated;
     });
   }, [isRunning, currentTrack, handleCadenceChange]);
 
@@ -132,7 +135,7 @@ export default function StandaloneWatchPage() {
           className="mt-4 flex items-center gap-2 px-5 py-2 rounded-xl bg-[#1a1d28] hover:bg-[#262a3b] border border-[#262a3b] text-white text-xs font-mono transition-all active:scale-95 shadow-md"
         >
           <Footprints className="w-4 h-4 text-[#10e57a]" />
-          <span>Tap Footstrike Step [Spacebar]</span>
+          <span>Tap Step [Spacebar] ({clickCount}/4)</span>
         </button>
       </div>
 

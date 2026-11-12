@@ -39,8 +39,9 @@ export default function LiveRunSimulatorPage() {
   const [simulationSpeed, setSimulationSpeed] = useState<number>(1);
   const [displayMode, setDisplayMode] = useState<"cockpit" | "watch" | "split">("cockpit");
 
-  // Tap-tempo stride detector state
+  // Tap-tempo stride detector state (Calibrated from first 4 clicks)
   const [stepTaps, setStepTaps] = useState<number[]>([]);
+  const [clickCount, setClickCount] = useState<number>(0);
   const [isSteppingVisual, setIsSteppingVisual] = useState<boolean>(false);
   const [lastTapFeedback, setLastTapFeedback] = useState<string | null>(null);
 
@@ -125,7 +126,7 @@ export default function LiveRunSimulatorPage() {
     setAiCoachCue(`AI DJ crossfaded to "${newTrack.name}" (${newTrack.bpm} BPM) for 1:1 cadence harmony!`);
   };
 
-  // STEP BUTTON / SPACEBAR TAP-TEMPO DETECTOR
+  // STEP BUTTON / SPACEBAR TAP-TEMPO DETECTOR (Calibrated from first 4 clicks)
   const handleStepTap = useCallback(() => {
     const now = performance.now();
 
@@ -140,36 +141,34 @@ export default function LiveRunSimulatorPage() {
     }
 
     setStepTaps((prevTaps) => {
-      // Filter out taps older than 2.8 seconds
-      const recent = prevTaps.filter((t) => now - t < 2800);
-      const updated = [...recent, now];
+      // If previous tap was > 2.5s ago or if already completed 4 taps, start a fresh 4-click cycle
+      const isStale = prevTaps.length > 0 && (now - prevTaps[prevTaps.length - 1] > 2500);
+      const startingFresh = isStale || prevTaps.length >= 4;
+      const updated = startingFresh ? [now] : [...prevTaps, now];
 
-      if (updated.length >= 2) {
-        // Calculate intervals between consecutive taps
-        const intervals: number[] = [];
-        for (let i = 1; i < updated.length; i++) {
-          const delta = updated[i] - updated[i - 1];
-          // Reject accidental key chatter / debounce (< 160ms)
-          if (delta > 160) {
-            intervals.push(delta);
-          }
-        }
+      const count = updated.length;
+      setClickCount(count);
 
-        if (intervals.length > 0) {
-          const avgInterval = intervals.reduce((a, b) => a + b, 0) / intervals.length;
-          // Calculate SPM = 60,000 ms / avgInterval
-          const calculatedSpm = Math.round(60000 / avgInterval);
-          // Clamp to realistic range
-          const clampedSpm = Math.max(100, Math.min(185, calculatedSpm));
+      if (count === 1) {
+        setLastTapFeedback("👟 Step 1/4 recorded — tap 3 more times in rhythm...");
+      } else if (count === 2) {
+        setLastTapFeedback("👟 Step 2/4 recorded — 2 more taps to lock SPM...");
+      } else if (count === 3) {
+        setLastTapFeedback("👟 Step 3/4 recorded — 1 more tap to calculate cadence...");
+      } else if (count === 4) {
+        // Calculate average interval across the first 4 clicks (3 intervals)
+        const totalDurationMs = updated[3] - updated[0];
+        const avgIntervalMs = totalDurationMs / 3;
+        const measuredSpm = Math.round(60000 / avgIntervalMs);
+        const clampedSpm = Math.max(100, Math.min(185, measuredSpm));
 
-          handleCadenceChange(clampedSpm);
-          setLastTapFeedback(`👟 Stride locked: ${clampedSpm} SPM (${Math.round(avgInterval)}ms per step)`);
-        }
-      } else {
-        setLastTapFeedback("👟 Tap again to calibrate stride cadence...");
+        handleCadenceChange(clampedSpm);
+        setLastTapFeedback(`🎯 Calibrated from 4 clicks: ${clampedSpm} SPM! (${Math.round(avgIntervalMs)}ms per step) · AI synced`);
+
+        setTimeout(() => setClickCount(0), 2200);
       }
 
-      return updated.slice(-5); // keep last 5 taps
+      return updated;
     });
   }, [isRunning, currentTrack, handleCadenceChange]);
 
@@ -336,7 +335,7 @@ export default function LiveRunSimulatorPage() {
         </div>
       </div>
 
-      {/* TACTILE STEP BUTTON & KEYBOARD SHORTCUT BANNER */}
+      {/* TACTILE 4-CLICK STEP CALIBRATOR BANNER */}
       <div className="p-4 rounded-2xl bg-gradient-to-r from-[#16201b] via-[#121815] to-[#16201b] border border-[#10e57a]/50 shadow-[0_0_25px_rgba(16,229,122,0.18)] flex flex-col md:flex-row items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           <div className={`w-12 h-12 rounded-xl flex items-center justify-center transition-all ${
@@ -348,14 +347,31 @@ export default function LiveRunSimulatorPage() {
           </div>
 
           <div>
-            <div className="flex items-center gap-2">
-              <h3 className="text-sm font-bold text-white">Tap-Tempo Step Detector</h3>
+            <div className="flex items-center gap-2.5">
+              <h3 className="text-sm font-bold text-white">4-Click Step Cadence Detector</h3>
               <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-[#1a1d28] text-[#10e57a] border border-[#262a3b]">
-                ⌨️ Spacebar Shortcut Active
+                ⌨️ Spacebar Active
               </span>
+
+              {/* 4-Step Progress Dots */}
+              <div className="flex items-center gap-1 ml-1">
+                {[1, 2, 3, 4].map((stepNum) => (
+                  <span
+                    key={stepNum}
+                    className={`w-3.5 h-3.5 rounded-full flex items-center justify-center text-[9px] font-mono font-bold transition-all ${
+                      clickCount >= stepNum
+                        ? "bg-[#10e57a] text-black scale-110 shadow-[0_0_8px_#10e57a]"
+                        : "bg-[#1a1d28] border border-[#262a3b] text-[#6b7794]"
+                    }`}
+                  >
+                    {stepNum}
+                  </span>
+                ))}
+              </div>
             </div>
+
             <p className="text-xs text-[#949eb5] mt-0.5">
-              {lastTapFeedback || "Press the Spacebar or tap the button in rhythm with your footsteps to set live cadence."}
+              {lastTapFeedback || "Click or hit Spacebar 4 times in rhythm to calculate your exact SPM stride cadence."}
             </p>
           </div>
         </div>
@@ -371,7 +387,7 @@ export default function LiveRunSimulatorPage() {
           }`}
         >
           <Footprints className="w-4 h-4 fill-black" />
-          <span>Tap Step (Space)</span>
+          <span>Tap Step [Space] ({clickCount}/4)</span>
         </button>
       </div>
 
