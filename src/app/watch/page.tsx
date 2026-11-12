@@ -2,20 +2,20 @@
 
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
-import { ArrowLeft, Monitor, Watch, Sparkles, Volume2 } from "lucide-react";
+import { ArrowLeft, Watch, Footprints } from "lucide-react";
 import { AppleWatchSimulator } from "@/components/AppleWatchSimulator";
 import { SEEDED_TRACKS, Track } from "@/lib/music-catalogue";
 import { calculateCadenceMatch, estimatePaceFromCadence, CadenceMatchResult } from "@/lib/cadence-engine";
 import { realAudioPlayer } from "@/lib/open-source-player";
-import { loadActivePlaylist } from "@/lib/user-store";
 
 export default function StandaloneWatchPage() {
-  const [cadence, setCadence] = useState<number>(168);
+  const [cadence, setCadence] = useState<number>(135);
   const [isRunning, setIsRunning] = useState<boolean>(false);
   const [elapsedSeconds, setElapsedSeconds] = useState<number>(142);
   const [distanceKm, setDistanceKm] = useState<number>(1.85);
-  const [currentTrackIndex, setCurrentTrackIndex] = useState<number>(2);
-  const [aiCoachCue, setAiCoachCue] = useState<string>("Crown rotated. 168 SPM locked into 84 BPM half-time groove.");
+  const [currentTrackIndex, setCurrentTrackIndex] = useState<number>(0);
+  const [aiCoachCue, setAiCoachCue] = useState<string>("watchOS Cadence companion active at 135 SPM. Spacebar or Crown controls active.");
+  const [stepTaps, setStepTaps] = useState<number[]>([]);
 
   const currentTrack: Track = SEEDED_TRACKS[currentTrackIndex] || SEEDED_TRACKS[0];
   const matchResult: CadenceMatchResult = calculateCadenceMatch(cadence, currentTrack);
@@ -36,11 +36,12 @@ export default function StandaloneWatchPage() {
     }
   }, [isRunning, currentTrack]);
 
-  const handleCadenceChange = (newSpm: number) => {
+  const handleCadenceChange = useCallback((newSpm: number) => {
     setCadence(newSpm);
+    realAudioPlayer.setBpm(newSpm);
     const newMatch = calculateCadenceMatch(newSpm, currentTrack);
     setAiCoachCue(`Digital Crown: ${newSpm} SPM. Sync score: ${newMatch.score}%.`);
-  };
+  }, [currentTrack]);
 
   const handleAutoAdapt = () => {
     if (bestAlternative) {
@@ -50,6 +51,46 @@ export default function StandaloneWatchPage() {
       setAiCoachCue(`Action Button triggered! Switched to "${bestAlternative.track.name}" for 100% lock.`);
     }
   };
+
+  // Step tap via Spacebar on watch page
+  const handleStepTap = useCallback(() => {
+    const now = performance.now();
+    if (!isRunning) {
+      realAudioPlayer.playTrack(currentTrack);
+      setIsRunning(true);
+    }
+
+    setStepTaps((prev) => {
+      const recent = prev.filter((t) => now - t < 2800);
+      const updated = [...recent, now];
+
+      if (updated.length >= 2) {
+        const intervals: number[] = [];
+        for (let i = 1; i < updated.length; i++) {
+          const delta = updated[i] - updated[i - 1];
+          if (delta > 160) intervals.push(delta);
+        }
+        if (intervals.length > 0) {
+          const avgInterval = intervals.reduce((a, b) => a + b, 0) / intervals.length;
+          const calculatedSpm = Math.round(60000 / avgInterval);
+          const clampedSpm = Math.max(100, Math.min(185, calculatedSpm));
+          handleCadenceChange(clampedSpm);
+        }
+      }
+      return updated.slice(-5);
+    });
+  }, [isRunning, currentTrack, handleCadenceChange]);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.code === "Space" || e.key === " ") {
+        e.preventDefault();
+        handleStepTap();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [handleStepTap]);
 
   return (
     <div className="min-h-[calc(100vh-140px)] flex flex-col justify-between py-6 px-4">
@@ -70,7 +111,7 @@ export default function StandaloneWatchPage() {
       </div>
 
       {/* Center Watch Display */}
-      <div className="flex-1 flex items-center justify-center py-6">
+      <div className="flex-1 flex flex-col items-center justify-center py-4">
         <AppleWatchSimulator
           cadence={cadence}
           onCadenceChange={handleCadenceChange}
@@ -84,12 +125,21 @@ export default function StandaloneWatchPage() {
           onAutoAdapt={handleAutoAdapt}
           aiCoachCue={aiCoachCue}
         />
+
+        {/* Spacebar step shortcut bar under watch */}
+        <button
+          onClick={handleStepTap}
+          className="mt-4 flex items-center gap-2 px-5 py-2 rounded-xl bg-[#1a1d28] hover:bg-[#262a3b] border border-[#262a3b] text-white text-xs font-mono transition-all active:scale-95 shadow-md"
+        >
+          <Footprints className="w-4 h-4 text-[#10e57a]" />
+          <span>Tap Footstrike Step [Spacebar]</span>
+        </button>
       </div>
 
       {/* Bottom Hint */}
       <div className="max-w-sm mx-auto text-center text-xs text-[#949eb5] font-mono space-y-1">
         <p className="text-white font-semibold">watchOS 11 Companion App Prototype</p>
-        <p>Interactive Digital Crown adjusts cadence · Orange Action Button triggers AI Auto-Sync</p>
+        <p>Rotate Digital Crown or tap Spacebar to calibrate step SPM in real-time</p>
       </div>
     </div>
   );

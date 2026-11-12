@@ -61,7 +61,7 @@ export function AppleWatchSimulator({
   }, [matchResult.isPhaseLocked, cadence]);
 
   const rotateCrown = (delta: number) => {
-    const next = Math.max(140, Math.min(195, cadence + delta));
+    const next = Math.max(100, Math.min(180, cadence + delta));
     onCadenceChange(next);
   };
 

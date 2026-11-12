@@ -6,20 +6,14 @@ import confetti from "canvas-confetti";
 import { 
   Play, 
   Pause, 
-  RotateCcw, 
   Sparkles, 
-  Sliders, 
-  Radio, 
-  Zap, 
-  Flame, 
-  CheckCircle2, 
   Watch, 
   Monitor, 
   Split, 
-  Volume2, 
-  ArrowRight,
   RefreshCw,
-  Cpu
+  Footprints,
+  Activity,
+  Zap
 } from "lucide-react";
 import { 
   loadActivePlaylist, 
@@ -30,25 +24,31 @@ import { GeneratedPlaylist, PlaylistTrackItem } from "@/lib/playlist-generator";
 import { SEEDED_TRACKS, Track } from "@/lib/music-catalogue";
 import { calculateCadenceMatch, estimatePaceFromCadence, CadenceMatchResult } from "@/lib/cadence-engine";
 import { realAudioPlayer } from "@/lib/open-source-player";
+import { audioSynth } from "@/lib/audio-synthesizer";
 import { formatTime } from "@/lib/utils";
 import { AppleWatchSimulator } from "@/components/AppleWatchSimulator";
 
 export default function LiveRunSimulatorPage() {
   const router = useRouter();
 
-  // Run Telemetry State
+  // Run Telemetry State - Starting at 135 SPM (recreational cruising cadence)
   const [isRunning, setIsRunning] = useState<boolean>(false);
   const [elapsedSeconds, setElapsedSeconds] = useState<number>(0);
   const [distanceKm, setDistanceKm] = useState<number>(0);
-  const [cadence, setCadence] = useState<number>(165);
+  const [cadence, setCadence] = useState<number>(135);
   const [simulationSpeed, setSimulationSpeed] = useState<number>(1);
   const [displayMode, setDisplayMode] = useState<"cockpit" | "watch" | "split">("cockpit");
+
+  // Tap-tempo stride detector state
+  const [stepTaps, setStepTaps] = useState<number[]>([]);
+  const [isSteppingVisual, setIsSteppingVisual] = useState<boolean>(false);
+  const [lastTapFeedback, setLastTapFeedback] = useState<string | null>(null);
 
   // Music & Real Audio Stream
   const [playlist, setPlaylist] = useState<GeneratedPlaylist | null>(null);
   const [currentTrackIndex, setCurrentTrackIndex] = useState<number>(0);
   const [aiAutoAdaptEnabled, setAiAutoAdaptEnabled] = useState<boolean>(true);
-  const [aiCoachCue, setAiCoachCue] = useState<string>("Cadence locked at 165 SPM. Real open-source stream active.");
+  const [aiCoachCue, setAiCoachCue] = useState<string>("Cadence calibrated at 135 SPM. Spacebar or Step button active.");
 
   // Telemetry recording refs
   const historyRef = useRef<{
@@ -94,22 +94,22 @@ export default function LiveRunSimulatorPage() {
   }, [isRunning, currentTrack]);
 
   // Handle manual or watch cadence adjustment
-  const handleCadenceChange = (newSpm: number) => {
+  const handleCadenceChange = useCallback((newSpm: number) => {
     setCadence(newSpm);
+    realAudioPlayer.setBpm(newSpm);
     const newMatch = calculateCadenceMatch(newSpm, currentTrack);
 
     if (newMatch.score < 85) {
-      setAiCoachCue(`Cadence shifted to ${newSpm} SPM. Track sync dropped to ${newMatch.score}%. AI Auto-DJ ready.`);
+      setAiCoachCue(`Cadence shifted to ${newSpm} SPM. Track sync at ${newMatch.score}%. AI Auto-DJ ready.`);
       if (aiAutoAdaptEnabled && bestAlternative && bestAlternative.score > 92) {
-        // Auto adapt track
         setTimeout(() => {
           handleSwitchTrack(bestAlternative.track);
-        }, 1200);
+        }, 1000);
       }
     } else {
-      setAiCoachCue(`Cadence optimal at ${newSpm} SPM (${newMatch.rhythmDetail}, ${newMatch.score}% sync).`);
+      setAiCoachCue(`Cadence locked at ${newSpm} SPM (${newMatch.rhythmDetail}, ${newMatch.score}% sync).`);
     }
-  };
+  }, [currentTrack, aiAutoAdaptEnabled, bestAlternative]);
 
   // Switch to specific track (with real open source audio stream)
   const handleSwitchTrack = (newTrack: Track) => {
@@ -124,6 +124,73 @@ export default function LiveRunSimulatorPage() {
     }
     setAiCoachCue(`AI DJ crossfaded to "${newTrack.name}" (${newTrack.bpm} BPM) for 1:1 cadence harmony!`);
   };
+
+  // STEP BUTTON / SPACEBAR TAP-TEMPO DETECTOR
+  const handleStepTap = useCallback(() => {
+    const now = performance.now();
+
+    // Trigger visual footstep flash
+    setIsSteppingVisual(true);
+    setTimeout(() => setIsSteppingVisual(false), 180);
+
+    // If run isn't started yet, automatically start on footstrike!
+    if (!isRunning) {
+      realAudioPlayer.playTrack(currentTrack);
+      setIsRunning(true);
+    }
+
+    setStepTaps((prevTaps) => {
+      // Filter out taps older than 2.8 seconds
+      const recent = prevTaps.filter((t) => now - t < 2800);
+      const updated = [...recent, now];
+
+      if (updated.length >= 2) {
+        // Calculate intervals between consecutive taps
+        const intervals: number[] = [];
+        for (let i = 1; i < updated.length; i++) {
+          const delta = updated[i] - updated[i - 1];
+          // Reject accidental key chatter / debounce (< 160ms)
+          if (delta > 160) {
+            intervals.push(delta);
+          }
+        }
+
+        if (intervals.length > 0) {
+          const avgInterval = intervals.reduce((a, b) => a + b, 0) / intervals.length;
+          // Calculate SPM = 60,000 ms / avgInterval
+          const calculatedSpm = Math.round(60000 / avgInterval);
+          // Clamp to realistic range
+          const clampedSpm = Math.max(100, Math.min(185, calculatedSpm));
+
+          handleCadenceChange(clampedSpm);
+          setLastTapFeedback(`👟 Stride locked: ${clampedSpm} SPM (${Math.round(avgInterval)}ms per step)`);
+        }
+      } else {
+        setLastTapFeedback("👟 Tap again to calibrate stride cadence...");
+      }
+
+      return updated.slice(-5); // keep last 5 taps
+    });
+  }, [isRunning, currentTrack, handleCadenceChange]);
+
+  // Global Spacebar Keydown Listener for Step Tap
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Ignore if user is typing in an input field
+      const targetTag = (e.target as HTMLElement)?.tagName;
+      if (targetTag === "INPUT" || targetTag === "TEXTAREA" || targetTag === "SELECT") {
+        return;
+      }
+
+      if (e.code === "Space" || e.key === " ") {
+        e.preventDefault(); // Stop page scrolling
+        handleStepTap();
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [handleStepTap]);
 
   // Main simulation timer loop
   useEffect(() => {
@@ -149,9 +216,9 @@ export default function LiveRunSimulatorPage() {
           });
         }
 
-        if (cadence < 155) zoneSecondsRef.current.warmup += 1;
-        else if (cadence <= 167) zoneSecondsRef.current.cruise += 1;
-        else if (cadence <= 176) zoneSecondsRef.current.threshold += 1;
+        if (cadence < 130) zoneSecondsRef.current.warmup += 1;
+        else if (cadence <= 145) zoneSecondsRef.current.cruise += 1;
+        else if (cadence <= 160) zoneSecondsRef.current.threshold += 1;
         else zoneSecondsRef.current.sprint += 1;
 
         return nextSec;
@@ -178,10 +245,10 @@ export default function LiveRunSimulatorPage() {
 
     const totalSec = Math.max(elapsedSeconds, 180);
     const history = historyRef.current.length > 3 ? historyRef.current : [
-      { second: 0, cadence: 155, pace: 330, compatibility: 92, trackName: currentTrack.name },
-      { second: 60, cadence: 165, pace: 310, compatibility: 96, trackName: "Resonance Engine" },
-      { second: 120, cadence: 150, pace: 345, compatibility: 89, trackName: "Sub-Zero Stride" },
-      { second: 180, cadence: 175, pace: 288, compatibility: 98, trackName: "Propulsion Vector" },
+      { second: 0, cadence: 125, pace: 360, compatibility: 94, trackName: currentTrack.name },
+      { second: 60, cadence: 135, pace: 340, compatibility: 97, trackName: "Rhythm Calibration" },
+      { second: 120, cadence: 140, pace: 325, compatibility: 96, trackName: "Pacific Highway" },
+      { second: 180, cadence: 150, pace: 310, compatibility: 98, trackName: "Resonance Engine" },
     ];
 
     const avgCad = Math.round(history.reduce((a, b) => a + b.cadence, 0) / (history.length || 1));
@@ -191,11 +258,11 @@ export default function LiveRunSimulatorPage() {
 
     const sessionRecord: RunSessionRecord = {
       id: `run-${Date.now()}`,
-      title: `${playlist?.workoutType ? playlist.workoutType.toUpperCase() : "ADAPTIVE"} Live Session`,
-      workoutType: playlist?.workoutType || "Tempo Run",
+      title: `${playlist?.workoutType ? playlist.workoutType.toUpperCase() : "CADENCE"} Session`,
+      workoutType: playlist?.workoutType || "Easy Run",
       date: "Just now",
       durationSeconds: totalSec,
-      distanceKm: Math.max(distanceKm, 1.2),
+      distanceKm: Math.max(distanceKm, 1.4),
       avgCadence: avgCad,
       peakCadence: peakCad,
       avgPace: pace.paceFormatted,
@@ -209,12 +276,12 @@ export default function LiveRunSimulatorPage() {
       },
       timeSeries: history,
       cadenceZones: [
-        { zoneName: "Warmup / Recovery", range: "< 155 SPM", seconds: zoneSecondsRef.current.warmup, percentage: Math.round((zoneSecondsRef.current.warmup / totalZoneSec) * 100) || 15, color: "#06b6d4" },
-        { zoneName: "Aerobic Cruise", range: "155 - 167 SPM", seconds: zoneSecondsRef.current.cruise, percentage: Math.round((zoneSecondsRef.current.cruise / totalZoneSec) * 100) || 45, color: "#10e57a" },
-        { zoneName: "Threshold Lock", range: "168 - 176 SPM", seconds: zoneSecondsRef.current.threshold, percentage: Math.round((zoneSecondsRef.current.threshold / totalZoneSec) * 100) || 30, color: "#f59e0b" },
-        { zoneName: "Anaerobic Kick", range: "> 176 SPM", seconds: zoneSecondsRef.current.sprint, percentage: Math.round((zoneSecondsRef.current.sprint / totalZoneSec) * 100) || 10, color: "#f43f5e" },
+        { zoneName: "Warmup / Easy Jog", range: "< 130 SPM", seconds: zoneSecondsRef.current.warmup, percentage: Math.round((zoneSecondsRef.current.warmup / totalZoneSec) * 100) || 20, color: "#06b6d4" },
+        { zoneName: "Aerobic Cruise", range: "130 - 145 SPM", seconds: zoneSecondsRef.current.cruise, percentage: Math.round((zoneSecondsRef.current.cruise / totalZoneSec) * 100) || 50, color: "#10e57a" },
+        { zoneName: "Threshold Lock", range: "146 - 160 SPM", seconds: zoneSecondsRef.current.threshold, percentage: Math.round((zoneSecondsRef.current.threshold / totalZoneSec) * 100) || 20, color: "#f59e0b" },
+        { zoneName: "Fast Surge", range: "> 160 SPM", seconds: zoneSecondsRef.current.sprint, percentage: Math.round((zoneSecondsRef.current.sprint / totalZoneSec) * 100) || 10, color: "#f43f5e" },
       ],
-      aiCoachSummary: `Session completed with ${avgScore}% musical-biomechanical resonance. Rapid cadence adaptations at ${peakCad} SPM prevented stride stagnation.`,
+      aiCoachSummary: `Session completed with ${avgScore}% musical-biomechanical resonance. Step-frequency matching maintained an even aerobic stride at ${avgCad} SPM.`,
     };
 
     saveRunSession(sessionRecord);
@@ -230,7 +297,7 @@ export default function LiveRunSimulatorPage() {
         <div className="flex items-center gap-2">
           <span className="w-2.5 h-2.5 rounded-full bg-[#10e57a] animate-ping" />
           <span className="font-bold text-white uppercase tracking-wider font-mono">
-            Cadence Engine · Real Open-Source Audio
+            Cadence Engine · Real Open-Source Music
           </span>
         </div>
 
@@ -269,8 +336,47 @@ export default function LiveRunSimulatorPage() {
         </div>
       </div>
 
+      {/* TACTILE STEP BUTTON & KEYBOARD SHORTCUT BANNER */}
+      <div className="p-4 rounded-2xl bg-gradient-to-r from-[#16201b] via-[#121815] to-[#16201b] border border-[#10e57a]/50 shadow-[0_0_25px_rgba(16,229,122,0.18)] flex flex-col md:flex-row items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <div className={`w-12 h-12 rounded-xl flex items-center justify-center transition-all ${
+            isSteppingVisual
+              ? "bg-[#10e57a] text-black scale-110 shadow-[0_0_20px_#10e57a]"
+              : "bg-[#10e57a]/15 text-[#10e57a] border border-[#10e57a]/30"
+          }`}>
+            <Footprints className="w-6 h-6 stroke-[2.5]" />
+          </div>
+
+          <div>
+            <div className="flex items-center gap-2">
+              <h3 className="text-sm font-bold text-white">Tap-Tempo Step Detector</h3>
+              <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-[#1a1d28] text-[#10e57a] border border-[#262a3b]">
+                ⌨️ Spacebar Shortcut Active
+              </span>
+            </div>
+            <p className="text-xs text-[#949eb5] mt-0.5">
+              {lastTapFeedback || "Press the Spacebar or tap the button in rhythm with your footsteps to set live cadence."}
+            </p>
+          </div>
+        </div>
+
+        {/* Big Tap Step Button */}
+        <button
+          onClick={handleStepTap}
+          type="button"
+          className={`flex items-center gap-2.5 px-6 py-3 rounded-xl font-bold text-xs uppercase tracking-wide transition-all select-none active:scale-95 ${
+            isSteppingVisual
+              ? "bg-white text-black shadow-[0_0_25px_#ffffff]"
+              : "bg-[#10e57a] hover:bg-[#0cd06d] text-black shadow-[0_0_20px_rgba(16,229,122,0.35)]"
+          }`}
+        >
+          <Footprints className="w-4 h-4 fill-black" />
+          <span>Tap Step (Space)</span>
+        </button>
+      </div>
+
       {/* AI STRIDE COACH & REAL-TIME ADAPTATION BANNER */}
-      <div className="p-4 rounded-2xl bg-[#141b18] border border-[#10e57a]/40 shadow-[0_0_20px_rgba(16,229,122,0.15)] flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+      <div className="p-4 rounded-2xl bg-[#141b18] border border-[#10e57a]/40 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
         <div className="flex items-center gap-2.5">
           <Sparkles className="w-4 h-4 text-[#10e57a] flex-shrink-0" />
           <span className="text-white font-mono font-medium">{aiCoachCue}</span>
@@ -325,7 +431,9 @@ export default function LiveRunSimulatorPage() {
           <div className={displayMode === "split" ? "lg:col-span-7 space-y-6" : "space-y-6"}>
             {/* Primary HUD Readouts */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              <div className="p-5 rounded-2xl bg-[#12141c] border border-[#262a3b]">
+              <div className={`p-5 rounded-2xl bg-[#12141c] border transition-colors ${
+                isSteppingVisual ? "border-[#10e57a] bg-[#16201b]" : "border-[#262a3b]"
+              }`}>
                 <span className="text-[10px] uppercase font-mono text-[#949eb5]">Cadence</span>
                 <div className="flex items-baseline gap-1 my-1">
                   <span className="text-4xl sm:text-5xl font-mono font-extrabold text-[#10e57a]">{cadence}</span>
@@ -393,47 +501,61 @@ export default function LiveRunSimulatorPage() {
               <button
                 onClick={handleTogglePlay}
                 className="w-14 h-14 rounded-2xl bg-[#10e57a] hover:bg-[#0cd06d] text-black flex items-center justify-center flex-shrink-0 shadow-[0_0_20px_rgba(16,229,122,0.4)] transition-all"
-                title={isRunning ? "Pause Stream" : "Start Real Audio Stream"}
+                title={isRunning ? "Pause Music" : "Start Live Music"}
               >
                 {isRunning ? <Pause className="w-6 h-6 fill-black" /> : <Play className="w-6 h-6 fill-black ml-0.5" />}
               </button>
             </div>
 
-            {/* Basic Cadence Controls */}
+            {/* Basic Cadence Controls with Lower Range Benchmarks */}
             <div className="p-5 rounded-2xl bg-[#12141c] border border-[#262a3b] space-y-4">
               <div className="flex items-center justify-between text-xs">
                 <span className="font-semibold text-white uppercase tracking-wider font-mono">
-                  Cadence Controller:
+                  Cadence Controller (Recreational & Jogger Range):
                 </span>
                 <span className="text-[#10e57a] font-mono font-bold">{cadence} SPM</span>
               </div>
 
-              {/* Quick Presets */}
+              {/* Quick Presets: 120, 135, 150, 165 */}
               <div className="grid grid-cols-4 gap-2">
-                {[155, 165, 150, 175].map((spm) => (
+                {[
+                  { spm: 120, label: "120 Warmup" },
+                  { spm: 135, label: "135 Cruise" },
+                  { spm: 150, label: "150 Steady" },
+                  { spm: 165, label: "165 Tempo" },
+                ].map((item) => (
                   <button
-                    key={spm}
-                    onClick={() => handleCadenceChange(spm)}
-                    className={`py-2 rounded-xl text-xs font-mono font-bold border transition-colors ${
-                      cadence === spm
+                    key={item.spm}
+                    onClick={() => handleCadenceChange(item.spm)}
+                    className={`py-2 px-1 rounded-xl text-xs font-mono font-bold border transition-colors ${
+                      cadence === item.spm
                         ? "bg-[#10e57a] text-black border-[#10e57a]"
                         : "bg-[#1a1d28] border-[#262a3b] text-[#949eb5] hover:text-white"
                     }`}
                   >
-                    {spm} SPM
+                    {item.label}
                   </button>
                 ))}
               </div>
 
-              {/* Continuous Slider */}
-              <input
-                type="range"
-                min={140}
-                max={190}
-                value={cadence}
-                onChange={(e) => handleCadenceChange(parseInt(e.target.value))}
-                className="w-full accent-[#10e57a] cursor-pointer"
-              />
+              {/* Continuous Slider from 100 to 180 SPM */}
+              <div className="space-y-1">
+                <input
+                  type="range"
+                  min={100}
+                  max={180}
+                  value={cadence}
+                  onChange={(e) => handleCadenceChange(parseInt(e.target.value))}
+                  className="w-full accent-[#10e57a] cursor-pointer"
+                />
+                <div className="flex justify-between text-[10px] font-mono text-[#6b7794]">
+                  <span>100 (Walk)</span>
+                  <span>120 (Jog)</span>
+                  <span>135 (Sweet Spot)</span>
+                  <span>150 (Run)</span>
+                  <span>180 (Sprint)</span>
+                </div>
+              </div>
 
               {/* Actions */}
               <div className="flex items-center gap-3 pt-2">
@@ -443,7 +565,7 @@ export default function LiveRunSimulatorPage() {
                     isRunning ? "bg-[#1a1d28] border border-[#262a3b] text-white" : "bg-[#10e57a] text-black shadow-lg"
                   }`}
                 >
-                  {isRunning ? "Pause Session" : "Start Live Session"}
+                  {isRunning ? "Pause Music" : "Start Live Music"}
                 </button>
                 <button
                   onClick={handleCompleteWorkout}

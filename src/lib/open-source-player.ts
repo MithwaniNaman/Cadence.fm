@@ -1,7 +1,7 @@
 /**
- * Open Source Audio Player Engine
- * Streams real music tracks from open-source audio libraries (SoundHelix & Creative Commons Archive)
- * with AI tempo adjustment, crossfading, and fallback bridging.
+ * Rock-Solid Dual Audio Player Engine
+ * Combines zero-latency high-fidelity procedural synth music (0ms buffering, never fails)
+ * with open-source remote audio streaming and seamless fallback bridging.
  */
 
 import { Track } from "./music-catalogue";
@@ -14,7 +14,7 @@ class OpenSourceAudioPlayer {
   private volume: number = 0.8;
   private onStateChange: (() => void) | null = null;
   private onTimeUpdate: ((currentSec: number, totalSec: number) => void) | null = null;
-  private isUsingFallbackSynth: boolean = false;
+  private isStreamingActive: boolean = false;
 
   constructor() {
     if (typeof window !== "undefined") {
@@ -26,18 +26,16 @@ class OpenSourceAudioPlayer {
     if (typeof window === "undefined") return;
     if (!this.audioElement) {
       this.audioElement = new Audio();
-      this.audioElement.preload = "auto";
+      this.audioElement.preload = "none";
       this.audioElement.volume = this.volume;
 
       this.audioElement.addEventListener("play", () => {
         this.isPlaying = true;
-        this.isUsingFallbackSynth = false;
-        audioSynth.stop(); // Stop synth when real music starts
+        this.isStreamingActive = true;
         this.notifyState();
       });
 
       this.audioElement.addEventListener("pause", () => {
-        this.isPlaying = false;
         this.notifyState();
       });
 
@@ -49,16 +47,17 @@ class OpenSourceAudioPlayer {
 
       this.audioElement.addEventListener("ended", () => {
         this.isPlaying = false;
+        audioSynth.stop();
         this.notifyState();
       });
 
       this.audioElement.addEventListener("error", () => {
-        // Fallback gracefully to Web Audio synthesizer if CDN stream has network issues
-        console.warn("Open source audio stream failed, engaging procedural rhythm fallback.");
+        // Fall back seamlessly to high-fidelity procedural synth engine
+        this.isStreamingActive = false;
         if (this.currentTrack && this.isPlaying) {
-          this.isUsingFallbackSynth = true;
           audioSynth.start(this.currentTrack.bpm);
         }
+        this.notifyState();
       });
     }
   }
@@ -71,36 +70,47 @@ class OpenSourceAudioPlayer {
     if (onTime) this.onTimeUpdate = onTime;
   }
 
-  public playTrack(track: Track, startOffsetSec: number = 0) {
+  public playTrack(track: Track) {
     this.initAudioElement();
     this.currentTrack = track;
     this.isPlaying = true;
 
+    // 1. Immediately start procedural synth music (0ms latency, zero buffering hesitation)
+    audioSynth.start(track.bpm);
+
+    // 2. Concurrently attempt streaming remote track with safety guards
     if (this.audioElement && track.audioUrl) {
       try {
+        this.audioElement.pause();
         this.audioElement.src = track.audioUrl;
-        this.audioElement.currentTime = startOffsetSec;
+        this.audioElement.load();
+        
         const playPromise = this.audioElement.play();
         if (playPromise !== undefined) {
-          playPromise.catch((err) => {
-            console.log("Audio autoplay policy or stream error:", err);
-            // Engage live rhythm synthesizer bridge
-            this.isUsingFallbackSynth = true;
-            audioSynth.start(track.bpm);
-            this.notifyState();
-          });
+          playPromise
+            .then(() => {
+              this.isStreamingActive = true;
+              this.notifyState();
+            })
+            .catch((err) => {
+              // Browser autoplay policy or remote load abort
+              this.isStreamingActive = false;
+              // Synth is already running smoothly!
+              this.notifyState();
+            });
         }
       } catch (err) {
-        console.warn("Stream exception:", err);
-        this.isUsingFallbackSynth = true;
-        audioSynth.start(track.bpm);
+        this.isStreamingActive = false;
       }
-    } else {
-      this.isUsingFallbackSynth = true;
-      audioSynth.start(track.bpm);
     }
 
     this.notifyState();
+  }
+
+  public setBpm(newBpm: number) {
+    if (this.isPlaying) {
+      audioSynth.setBpm(newBpm);
+    }
   }
 
   public togglePlayPause() {
@@ -110,34 +120,31 @@ class OpenSourceAudioPlayer {
     if (this.isPlaying) {
       this.pause();
     } else {
-      if (this.isUsingFallbackSynth) {
-        audioSynth.start(this.currentTrack.bpm);
-        this.isPlaying = true;
-        this.notifyState();
-      } else if (this.audioElement) {
-        this.audioElement.play().catch(() => {
-          this.isUsingFallbackSynth = true;
-          audioSynth.start(this.currentTrack!.bpm);
-          this.isPlaying = true;
-          this.notifyState();
-        });
-      }
+      this.playTrack(this.currentTrack);
     }
   }
 
   public pause() {
     this.isPlaying = false;
-    if (this.audioElement) {
-      this.audioElement.pause();
-    }
     audioSynth.stop();
+    if (this.audioElement) {
+      try {
+        this.audioElement.pause();
+      } catch {
+        // ignore
+      }
+    }
     this.notifyState();
   }
 
   public stop() {
     this.pause();
     if (this.audioElement) {
-      this.audioElement.currentTime = 0;
+      try {
+        this.audioElement.currentTime = 0;
+      } catch {
+        // ignore
+      }
     }
     this.currentTrack = null;
     this.notifyState();
@@ -158,8 +165,12 @@ class OpenSourceAudioPlayer {
     return this.isPlaying;
   }
 
+  public getIsStreaming(): boolean {
+    return this.isStreamingActive;
+  }
+
   public getIsUsingFallback(): boolean {
-    return this.isUsingFallbackSynth;
+    return !this.isStreamingActive;
   }
 
   private notifyState() {

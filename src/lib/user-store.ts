@@ -50,7 +50,7 @@ export const DEFAULT_USER_PROFILE: UserProfile = {
   experience: "Intermediate",
   preferredDistance: "Half Marathon",
   preferredGenres: ["Electronic", "Alternative Rock", "Hip-Hop"],
-  typicalCadence: 168,
+  typicalCadence: 136,
   preferredIntensity: "Challenging",
   hasCompletedOnboarding: true,
 };
